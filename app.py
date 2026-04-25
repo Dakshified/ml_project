@@ -281,34 +281,55 @@ inject_custom_css()
 # --- CACHED IMAGE FETCH ---
 @st.cache_data(show_spinner=False)
 def get_poster(movie_id, title=None):
-    # Multiple API keys to avoid limit issues
-    keys = ["df06542d", "5d8628f2", "bb736f1c"]
+    """
+    Fetches the movie poster URL using TMDB as the primary source,
+    with OMDb as a fallback.
+    """
+    tmdb_key = "8265bd1679663a7ea12ac168da84d2e8"
     
-    for key in keys:
-        # 1. Try OMDb by IMDb ID (most accurate)
+    # 1. Try TMDB by IMDb ID (if movie_id looks like an IMDb ID)
+    if isinstance(movie_id, str) and movie_id.startswith('tt'):
         try:
-            url = f"http://www.omdbapi.com/?i={movie_id}&apikey={key}"
+            url = f"https://api.themoviedb.org/3/find/{movie_id}?api_key={tmdb_key}&language=en-US&external_source=imdb_id"
+            res = requests.get(url, timeout=4).json()
+            if res.get('movie_results'):
+                path = res['movie_results'][0].get('poster_path')
+                if path:
+                    return f"https://image.tmdb.org/t/p/w500{path}"
+        except Exception:
+            pass
+
+    # 2. Try TMDB Search by Title (fallback)
+    if title:
+        try:
+            # Clean title (remove year if present like "Title (2022)")
+            clean_title = title.split('(')[0].strip()
+            url = f"https://api.themoviedb.org/3/search/movie?api_key={tmdb_key}&query={clean_title}"
+            res = requests.get(url, timeout=4).json()
+            if res.get('results'):
+                path = res['results'][0].get('poster_path')
+                if path:
+                    return f"https://image.tmdb.org/t/p/w500{path}"
+        except Exception:
+            pass
+
+    # 3. Try OMDb API (Legacy Fallback)
+    omdb_keys = ["df06542d", "5d8628f2", "bb736f1c"]
+    for key in omdb_keys:
+        try:
+            if isinstance(movie_id, str) and movie_id.startswith('tt'):
+                url = f"http://www.omdbapi.com/?i={movie_id}&apikey={key}"
+            elif title:
+                url = f"http://www.omdbapi.com/?t={title}&apikey={key}"
+            else:
+                continue
+                
             res = requests.get(url, timeout=4).json()
             if res.get('Response') == 'True' and res.get('Poster') and res['Poster'] != "N/A":
                 return res['Poster']
-        except: pass
-        
-        # 2. Try OMDb by Title (fallback)
-        if title:
-            try:
-                url = f"http://www.omdbapi.com/?t={title}&apikey={key}"
-                res = requests.get(url, timeout=4).json()
-                if res.get('Response') == 'True' and res.get('Poster') and res['Poster'] != "N/A":
-                    return res['Poster']
-            except: pass
+        except Exception:
+            pass
             
-    # 3. Fallback to TMDB (in case OMDb is down but TMDB works)
-    try:
-        url = f"https://api.themoviedb.org/3/find/{movie_id}?api_key=8265bd1679663a7ea12ac168da84d2e8&language=en-US&external_source=imdb_id"
-        res = requests.get(url, timeout=3).json()
-        if res.get('movie_results'): return "https://image.tmdb.org/t/p/w500/" + res['movie_results'][0]['poster_path']
-    except: pass
-    
     return "https://placehold.co/500x750/1a1a24/444455.png?text=Poster+Unavailable"
 
 # --- DATA LOAD ---
@@ -605,7 +626,7 @@ if movies is None:
 @st.dialog("🎬 Cinematic Details", width="large")
 def movie_details_dialog(movie_id, title):
     row = movies[movies['movie_id'] == movie_id].iloc[0]
-    poster = get_poster(movie_id)
+    poster = get_poster(movie_id, title=title)
     
     col1, col2 = st.columns([1, 2])
     with col1:
