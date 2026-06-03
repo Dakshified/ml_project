@@ -107,5 +107,5 @@ streamlit run app.py
 
 ---
 
-**Project Developed by:** Shlok Chorghe  
+**Project Developed by:** Daksh Bhardwaj  
 **Submission Category:** Machine Learning Course Project
